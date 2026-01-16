@@ -1,4 +1,4 @@
-.PHONY: build build-all install test clean
+.PHONY: build build-all install test clean fmt fmt-fix vet lint ci
 
 VERSION := 0.1.0
 BINARY := issue-flow
@@ -25,3 +25,16 @@ test-coverage:
 clean:
 	rm -rf bin/
 	rm -f coverage.out
+
+fmt:
+	@test -z $$(gofmt -l . | grep -v vendor) || (echo "Go code is not formatted. Run 'make fmt-fix' to fix." && exit 1)
+
+fmt-fix:
+	gofmt -w .
+
+vet:
+	go vet ./...
+
+lint: fmt vet test
+
+ci: fmt vet test

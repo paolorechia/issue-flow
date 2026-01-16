@@ -28,6 +28,6 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("issue-flow v0.1.0")
+		fmt.Fprintln(cmd.OutOrStdout(), "issue-flow v0.1.0")
 	},
 }
