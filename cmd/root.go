@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/paolorechia/issue-flow/internal/storage"
 	"github.com/spf13/cobra"
 )
+
+var testDB *storage.Database
 
 var rootCmd = &cobra.Command{
 	Use:   "issue-flow",
@@ -18,6 +21,17 @@ func Execute() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func getDB() (*storage.Database, error) {
+	if testDB != nil {
+		return testDB, nil
+	}
+	return storage.New()
+}
+
+func shouldCloseDB(db *storage.Database) bool {
+	return db != testDB
 }
 
 func init() {

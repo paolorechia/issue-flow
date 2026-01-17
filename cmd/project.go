@@ -6,7 +6,6 @@ import (
 	"text/tabwriter"
 
 	"github.com/paolorechia/issue-flow/internal/project"
-	"github.com/paolorechia/issue-flow/internal/storage"
 	"github.com/spf13/cobra"
 )
 
@@ -30,12 +29,14 @@ var projectListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List all projects",
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := storage.New()
+		db, err := getDB()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 			os.Exit(1)
 		}
-		defer db.Close()
+		if shouldCloseDB(db) {
+			defer db.Close()
+		}
 
 		manager := project.NewManager(db)
 		projects, err := manager.List()
@@ -62,12 +63,14 @@ var projectAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "Add a new project",
 	Run: func(cmd *cobra.Command, args []string) {
-		db, err := storage.New()
+		db, err := getDB()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 			os.Exit(1)
 		}
-		defer db.Close()
+		if shouldCloseDB(db) {
+			defer db.Close()
+		}
 
 		if projectID == "" || projectName == "" || githubOwner == "" || githubRepo == "" {
 			fmt.Fprintln(os.Stderr, "Error: --id, --name, --owner, and --repo are required")
@@ -111,12 +114,14 @@ var projectShowCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		id := args[0]
 
-		db, err := storage.New()
+		db, err := getDB()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error opening database: %v\n", err)
 			os.Exit(1)
 		}
-		defer db.Close()
+		if shouldCloseDB(db) {
+			defer db.Close()
+		}
 
 		manager := project.NewManager(db)
 		p, err := manager.Get(id)

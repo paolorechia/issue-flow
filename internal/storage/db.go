@@ -48,17 +48,24 @@ type IssueCache struct {
 }
 
 func New() (*Database, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
+	return NewWithDBPath("")
+}
+
+func NewWithDBPath(dbPath string) (*Database, error) {
+	if dbPath == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get home directory: %w", err)
+		}
+
+		dbDir := filepath.Join(home, ".issue-flow")
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create database directory: %w", err)
+		}
+
+		dbPath = filepath.Join(dbDir, "database.db")
 	}
 
-	dbDir := filepath.Join(home, ".issue-flow")
-	if err := os.MkdirAll(dbDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create database directory: %w", err)
-	}
-
-	dbPath := filepath.Join(dbDir, "database.db")
 	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -171,5 +178,124 @@ func (d *Database) ListProjects() ([]Project, error) {
 func (d *Database) DeleteProject(id string) error {
 	query := `DELETE FROM projects WHERE id = ?`
 	_, err := d.db.Exec(query, id)
+	return err
+}
+
+func (d *Database) CreateWorktree(w *Worktree) error {
+	query := `
+	INSERT INTO worktrees (id, project_id, issue_number, path, branch, status)
+	VALUES (?, ?, ?, ?, ?, ?)
+	`
+
+	_, err := d.db.Exec(query, w.ID, w.ProjectID, w.IssueNumber, w.Path, w.Branch, w.Status)
+	return err
+}
+
+func (d *Database) GetWorktree(id string) (*Worktree, error) {
+	query := `SELECT id, project_id, issue_number, path, branch, status, created_at FROM worktrees WHERE id = ?`
+
+	row := d.db.QueryRow(query, id)
+	var w Worktree
+	err := row.Scan(&w.ID, &w.ProjectID, &w.IssueNumber, &w.Path, &w.Branch, &w.Status, &w.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &w, nil
+}
+
+func (d *Database) ListWorktrees() ([]Worktree, error) {
+	query := `SELECT id, project_id, issue_number, path, branch, status, created_at FROM worktrees ORDER BY created_at`
+
+	rows, err := d.db.Query(query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var worktrees []Worktree
+	for rows.Next() {
+		var w Worktree
+		if err := rows.Scan(&w.ID, &w.ProjectID, &w.IssueNumber, &w.Path, &w.Branch, &w.Status, &w.CreatedAt); err != nil {
+			return nil, err
+		}
+		worktrees = append(worktrees, w)
+	}
+
+	return worktrees, nil
+}
+
+func (d *Database) ListWorktreesByProject(projectID string) ([]Worktree, error) {
+	query := `SELECT id, project_id, issue_number, path, branch, status, created_at FROM worktrees WHERE project_id = ? ORDER BY created_at`
+
+	rows, err := d.db.Query(query, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var worktrees []Worktree
+	for rows.Next() {
+		var w Worktree
+		if err := rows.Scan(&w.ID, &w.ProjectID, &w.IssueNumber, &w.Path, &w.Branch, &w.Status, &w.CreatedAt); err != nil {
+			return nil, err
+		}
+		worktrees = append(worktrees, w)
+	}
+
+	return worktrees, nil
+}
+
+func (d *Database) DeleteWorktree(id string) error {
+	query := `DELETE FROM worktrees WHERE id = ?`
+	_, err := d.db.Exec(query, id)
+	return err
+}
+
+func (d *Database) CacheIssue(c *IssueCache) error {
+	query := `
+	INSERT OR REPLACE INTO issue_cache (project_id, issue_number, title, type, priority, status, cached_at)
+	VALUES (?, ?, ?, ?, ?, ?, ?)
+	`
+
+	_, err := d.db.Exec(query, c.ProjectID, c.IssueNumber, c.Title, c.Type, c.Priority, c.Status, c.CachedAt)
+	return err
+}
+
+func (d *Database) GetIssueCache(projectID string, issueNumber int) (*IssueCache, error) {
+	query := `SELECT id, project_id, issue_number, title, type, priority, status, cached_at FROM issue_cache WHERE project_id = ? AND issue_number = ?`
+
+	row := d.db.QueryRow(query, projectID, issueNumber)
+	var c IssueCache
+	err := row.Scan(&c.ID, &c.ProjectID, &c.IssueNumber, &c.Title, &c.Type, &c.Priority, &c.Status, &c.CachedAt)
+	if err != nil {
+		return nil, err
+	}
+	return &c, nil
+}
+
+func (d *Database) ListIssueCache(projectID string) ([]IssueCache, error) {
+	query := `SELECT id, project_id, issue_number, title, type, priority, status, cached_at FROM issue_cache WHERE project_id = ? ORDER BY issue_number`
+
+	rows, err := d.db.Query(query, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var issues []IssueCache
+	for rows.Next() {
+		var c IssueCache
+		if err := rows.Scan(&c.ID, &c.ProjectID, &c.IssueNumber, &c.Title, &c.Type, &c.Priority, &c.Status, &c.CachedAt); err != nil {
+			return nil, err
+		}
+		issues = append(issues, c)
+	}
+
+	return issues, nil
+}
+
+func (d *Database) ClearIssueCache(projectID string) error {
+	query := `DELETE FROM issue_cache WHERE project_id = ?`
+	_, err := d.db.Exec(query, projectID)
 	return err
 }
